@@ -58,6 +58,8 @@ struct _Task {
     double* comm_costs;
     int* transfer_tags;
     complexity_t complexity;
+    int is_entry;
+    int is_exit;
 };
 
 struct _DAG {
