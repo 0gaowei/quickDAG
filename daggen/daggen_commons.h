@@ -17,10 +17,10 @@
 #endif
 
 typedef enum {
-  MIXED =0,
-  N_2,
-  N_LOG_N, /* (n2 log(n2) indeed */
-  N_3
+    MIXED = 0,
+    N_2,
+    N_LOG_N, /* (n2 log(n2) indeed */
+    N_3
 } complexity_t;
 
 
@@ -32,42 +32,44 @@ typedef enum {
 /*********************************/
 
 typedef struct {
-  int n;          /* number of tasks in the graph       */
-  double fat;     /* fatness parameter                    */
-  double regular; /* regularity                         */
-  int ccr;     /* Communication to computation ratio */
-  double density;
-  double mindata, maxdata;
-  double minalpha, maxalpha; /* Amdahl's law parameter */
-  int jump;
-  int dot_output;
-  FILE *output_file;
+    int n;          /* number of tasks in the graph       */
+    double fat;     /* fatness parameter                    */
+    double regular; /* regularity                         */
+    int ccr;     /* Communication to computation ratio */
+    double density;
+    double mindata, maxdata;
+    double minalpha, maxalpha; /* Amdahl's law parameter */
+    int jump;
+    int dot_output;
+    FILE* output_file;
 } Global;
 extern Global global;
 
-typedef struct _Task *Task;
-typedef struct _DAG *DAG;
+typedef struct _Task* Task;
+typedef struct _DAG* DAG;
 
 struct _Task {
-  int tag;
-  double cost;
-  int data_size;
-  double alpha;
-  int nb_children;
-  Task *children;
-  double *comm_costs;
-  int *transfer_tags;
-  complexity_t complexity;
+    int tag;
+    double cost;
+    int data_size;
+    double alpha;
+    int nb_children;
+    Task* children;
+    double* comm_costs;
+    int* transfer_tags;
+    complexity_t complexity;
+    int is_entry;
+    int is_exit;
 };
 
 struct _DAG {
-  int nb_levels;
-  int *nb_tasks_per_level;
-  Task **levels;
+    int nb_levels;
+    int* nb_tasks_per_level;
+    Task** levels;
 };
 
 
-int parseOptions(int argc, char *const *argv);
+int parseOptions(int argc, char* const* argv);
 
 void printUsage(void);
 

@@ -22,6 +22,7 @@ static DAG generateDAG(void);
 static void generateTasks(DAG dag);
 static void generateDependencies(DAG dag);
 static void generateTransfers(DAG dag);
+static void addEntryExitNodes(DAG dag);
 static void freeDAG(DAG dag);
 
 /************/
@@ -85,6 +86,9 @@ static DAG generateDAG(void)
 
     /* Generating the Dependencies */
     generateDependencies(dag);
+
+    /* Adding the entry and exit nodes */
+    addEntryExitNodes(dag);
 
     /* Generating the transfer costs */
     generateTransfers(dag);
@@ -237,7 +241,7 @@ static void generateTasks(DAG dag)
             /** Cost are in flops                    **/
 
             dag->levels[i][j]->data_size = ((int)getRandomNumberBetween(
-                                            global.mindata, global.maxdata) / 1024) * 1024;
+                global.mindata, global.maxdata) / 1024) * 1024;
 
             op = getRandomNumberBetween(64.0, 512.0);
 
@@ -273,6 +277,140 @@ static void generateTasks(DAG dag)
         }
     }
 }
+
+static void addEntryExitNodes(DAG dag)
+{
+    int i, j, k;
+    int has_parent;
+    int has_child;
+    Task entry_node, exit_node;
+    int* sources = NULL;
+    int* sinks = NULL;
+    int nb_sources = 0;
+    int nb_sinks = 0;
+
+    /* 创建头节点S */
+    entry_node = (Task)calloc(1, sizeof(struct _Task));
+    entry_node->data_size = 1024;  /* 一个较小的值 */
+    entry_node->complexity = N_2;  /* 简单的复杂度 */
+    entry_node->cost = 1.0;        /* 最小的计算成本 */
+    entry_node->alpha = 1.0;
+    entry_node->is_entry = 1;      /* 标记为头节点 */
+
+    /* 创建尾节点T */
+    exit_node = (Task)calloc(1, sizeof(struct _Task));
+    exit_node->data_size = 1024;   /* 一个较小的值 */
+    exit_node->complexity = N_2;   /* 简单的复杂度 */
+    exit_node->cost = 1.0;         /* 最小的计算成本 */
+    exit_node->alpha = 1.0;
+    exit_node->is_exit = 1;        /* 标记为尾节点 */
+
+    /* 找出所有源节点（没有父节点的节点）*/
+    for (i = 0; i < dag->nb_levels; i++) {
+        for (j = 0; j < dag->nb_tasks_per_level[i]; j++) {
+            has_parent = 0;
+
+            /* 检查是否有父节点 */
+            for (k = 0; k < i; k++) {
+                int l, m;
+                for (l = 0; l < dag->nb_tasks_per_level[k]; l++) {
+                    for (m = 0; m < dag->levels[k][l]->nb_children; m++) {
+                        if (dag->levels[k][l]->children[m] == dag->levels[i][j]) {
+                            has_parent = 1;
+                            break;
+                        }
+                    }
+                    if (has_parent) break;
+                }
+                if (has_parent) break;
+            }
+
+            if (!has_parent) {
+                sources = (int*)realloc(sources, (nb_sources + 1) * sizeof(int));
+                sources[nb_sources++] = i * 1000 + j; /* 使用1000作为分隔符来存储level和index */
+            }
+        }
+    }
+
+    /* 找出所有汇节点（没有子节点的节点）*/
+    for (i = 0; i < dag->nb_levels; i++) {
+        for (j = 0; j < dag->nb_tasks_per_level[i]; j++) {
+            has_child = (dag->levels[i][j]->nb_children > 0);
+
+            if (!has_child) {
+                sinks = (int*)realloc(sinks, (nb_sinks + 1) * sizeof(int));
+                sinks[nb_sinks++] = i * 1000 + j; /* 使用1000作为分隔符来存储level和index */
+            }
+        }
+    }
+
+    /* 连接头节点S到所有源节点 */
+    entry_node->children = (Task*)calloc(nb_sources, sizeof(Task));
+    entry_node->nb_children = nb_sources;
+    entry_node->comm_costs = (double*)calloc(nb_sources, sizeof(double));
+    entry_node->transfer_tags = (int*)calloc(nb_sources, sizeof(int));
+
+    for (i = 0; i < nb_sources; i++) {
+        int level = sources[i] / 1000;
+        int index = sources[i] % 1000;
+        entry_node->children[i] = dag->levels[level][index];
+        /* 计算传输成本 - 与其他节点相同的逻辑 */
+        entry_node->comm_costs[i] = (pow(entry_node->data_size, 2.0) * 8);
+    }
+
+    /* 连接所有汇节点到尾节点T */
+    for (i = 0; i < nb_sinks; i++) {
+        int level = sinks[i] / 1000;
+        int index = sinks[i] % 1000;
+        Task sink = dag->levels[level][index];
+
+        sink->children = (Task*)realloc(sink->children, (sink->nb_children + 1) * sizeof(Task));
+        sink->children[sink->nb_children] = exit_node;
+
+        sink->comm_costs = (double*)realloc(sink->comm_costs, (sink->nb_children + 1) * sizeof(double));
+        sink->comm_costs[sink->nb_children] = (pow(sink->data_size, 2.0) * 8);
+
+        sink->transfer_tags = (int*)realloc(sink->transfer_tags, (sink->nb_children + 1) * sizeof(int));
+        sink->transfer_tags[sink->nb_children] = 0;
+
+        sink->nb_children++;
+    }
+
+    /* 创建新的头尾级别 */
+    dag->levels = (Task**)realloc(dag->levels, (dag->nb_levels + 2) * sizeof(Task*));
+
+    /* 移动现有级别，为头节点腾出位置（第0级） */
+    for (i = dag->nb_levels; i > 0; i--) {
+        dag->levels[i] = dag->levels[i - 1];
+    }
+
+    /* 添加头节点作为第0级 */
+    dag->levels[0] = (Task*)calloc(1, sizeof(Task));
+    dag->levels[0][0] = entry_node;
+
+    /* 添加尾节点作为最后一级 */
+    dag->levels[dag->nb_levels + 1] = (Task*)calloc(1, sizeof(Task));
+    dag->levels[dag->nb_levels + 1][0] = exit_node;
+
+    /* 更新级别任务数组 */
+    int* new_nb_tasks = (int*)calloc(dag->nb_levels + 2, sizeof(int));
+    new_nb_tasks[0] = 1; /* 头节点级别只有1个任务 */
+
+    for (i = 0; i < dag->nb_levels; i++) {
+        new_nb_tasks[i + 1] = dag->nb_tasks_per_level[i];
+    }
+
+    new_nb_tasks[dag->nb_levels + 1] = 1; /* 尾节点级别只有1个任务 */
+
+    free(dag->nb_tasks_per_level);
+    dag->nb_tasks_per_level = new_nb_tasks;
+    dag->nb_levels += 2; /* 增加总级别数 */
+
+    /* 清理临时数组 */
+    free(sources);
+    free(sinks);
+}
+
 
 void freeDAG(DAG dag)
 {
