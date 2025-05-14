@@ -108,8 +108,8 @@ class DAG:
         max_memory = 0
         memory_trace = []
         
-        print("\n====== 内存变化详细计算过程 ======")
-        print(f"初始内存: {current_memory}")
+        # print("\n====== 内存变化详细计算过程 ======")
+        # print(f"初始内存: {current_memory}")
         
         # 构建节点到执行顺序的映射
         execution_time = {node_id: idx for idx, node_id in enumerate(execution_order)}
@@ -124,64 +124,64 @@ class DAG:
         for idx, node_id in enumerate(execution_order):
             node = self.nodes[node_id]
             
-            print(f"\n>> 执行节点 {node_id} <<")
-            print(f"  开始时内存: {current_memory}")
+            # print(f"\n>> 执行节点 {node_id} <<")
+            # print(f"  开始时内存: {current_memory}")
             
             memory_changes = []
             
             # 如果是起始节点，只添加出边内存
             if not node.in_edges:  # 起始节点
-                print(f"  节点 {node_id} 是起始节点，只添加出边数据")
+                # print(f"  节点 {node_id} 是起始节点，只添加出边数据")
                 for target_id, out_size in node.out_edges:
                     current_memory += out_size
                     memory_changes.append(("+", target_id, out_size))
-                    print(f"  添加出边 {node_id}->{target_id} 数据: +{out_size} 当前内存: {current_memory}")
+                    # print(f"  添加出边 {node_id}->{target_id} 数据: +{out_size} 当前内存: {current_memory}")
             
             # 如果是终止节点，只减去入边内存
             elif not node.out_edges:  # 终止节点
-                print(f"  节点 {node_id} 是终止节点，只减去入边数据")
+                # print(f"  节点 {node_id} 是终止节点，只减去入边数据")
                 for source_id, in_size in node.in_edges:
                     current_memory -= in_size
                     memory_changes.append(("-", source_id, in_size))
-                    print(f"  减去入边 {source_id}->{node_id} 数据: -{in_size} 当前内存: {current_memory}")
+                    # print(f"  减去入边 {source_id}->{node_id} 数据: -{in_size} 当前内存: {current_memory}")
             
             # 中间节点，减去入边，加上出边
             else:
-                print(f"  节点 {node_id} 是中间节点")
+                # print(f"  节点 {node_id} 是中间节点")
                 
                 # 减去入边数据
                 for source_id, in_size in node.in_edges:
                     current_memory -= in_size
                     memory_changes.append(("-", source_id, in_size))
-                    print(f"计算前内存: {current_memory}  减去入边 {source_id}->{node_id} 数据: -{in_size} 当前内存: {current_memory}")
+                    # print(f"计算前内存: {current_memory}  减去入边 {source_id}->{node_id} 数据: -{in_size} 当前内存: {current_memory}")
                     
                 # 添加出边数据
                 for target_id, out_size in node.out_edges:
                     current_memory += out_size
                     memory_changes.append(("+", target_id, out_size))
-                    print(f"  添加出边 {node_id}->{target_id} 数据: +{out_size} 当前内存: {current_memory}")
+                    # print(f"  添加出边 {node_id}->{target_id} 数据: +{out_size} 当前内存: {current_memory}")
             
             # 汇总内存变化
             if memory_changes:
                 in_sum = sum(size for op, _, size in memory_changes if op == "-")
                 out_sum = sum(size for op, _, size in memory_changes if op == "+")
                 net_change = out_sum - in_sum
-                if net_change >= 0:
-                    print(f"  内存净变化: +{net_change} (减少: {in_sum}, 增加: {out_sum})")
-                else:
-                    print(f"  内存净变化: {net_change} (减少: {in_sum}, 增加: {out_sum})")
+                # if net_change >= 0:
+                    # print(f"  内存净变化: +{net_change} (减少: {in_sum}, 增加: {out_sum})")
+                # else:
+                    # print(f"  内存净变化: {net_change} (减少: {in_sum}, 增加: {out_sum})")
             
             # 更新最大内存
             if current_memory > max_memory:
                 max_memory = current_memory
                 # print(f"  *** 新的内存峰值: {max_memory} ***")
             
-            print(f"  结束时内存: {current_memory}")
+            # print(f"  结束时内存: {current_memory}")
             memory_trace.append((node_id, current_memory))
         
-        print("\n====== 内存模拟结束 ======")
-        print(f"最终内存: {current_memory}")
-        print(f"内存峰值: {max_memory}")
+        # print(f"最终内存: {current_memory}")
+        # print(f"内存峰值: {max_memory}")
+        # print("====== 内存模拟结束 ======\n")
         
         return max_memory, memory_trace
 
@@ -246,8 +246,12 @@ class DAG:
         greedy_order = greedy_memory_optimization()
         greedy_memory, _ = self.simulate_memory(greedy_order)
         if greedy_memory < best_memory:
+            print("策略1: 贪心优化，内存峰值减少")
             best_order = greedy_order
             best_memory = greedy_memory
+        print("\n贪心优化后的排序:", greedy_order)
+        print("贪心优化后内存峰值:", greedy_memory)
+        print("内存优化效果: {:.2f}%".format((best_memory - greedy_memory) / best_memory * 100))
         
         # 策略2: 优先释放大数据，同时考虑节点约束
         def big_data_release_optimization():
@@ -297,8 +301,12 @@ class DAG:
         release_order = big_data_release_optimization()
         release_memory, _ = self.simulate_memory(release_order)
         if release_memory < best_memory:
+            print("策略2: 优先释放大数据，内存峰值减少")
             best_order = release_order
             best_memory = release_memory
+        print("\n优先释放大数据后的排序:", release_order)
+        print("优先释放大数据后内存峰值:", release_memory)
+        print("内存优化效果: {:.2f}%".format((best_memory - release_memory) / best_memory * 100))
         
         # 策略3: 混合策略 - 考虑节点约束、输出大小和释放内存
         def hybrid_optimization():
@@ -349,8 +357,12 @@ class DAG:
         hybrid_order = hybrid_optimization()
         hybrid_memory, _ = self.simulate_memory(hybrid_order)
         if hybrid_memory < best_memory:
+            print("策略3: 混合优化，内存峰值减少")
             best_order = hybrid_order
             best_memory = hybrid_memory
+        print("\n混合优化后的排序:", hybrid_order)
+        print("混合优化后内存峰值:", hybrid_memory)
+        print("内存优化效果: {:.2f}%".format((best_memory - hybrid_memory) / best_memory * 100))
         
         # 输出最佳结果
         return best_order, best_memory
