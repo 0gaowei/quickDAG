@@ -1,6 +1,12 @@
 import re
 import heapq
+import sys
 from collections import defaultdict
+
+'''
+用法:
+python max_release_alloc.py <DAG文件路径> <输出DOT文件路径>
+'''
 
 def parse_dot_file(filepath):
     adj = defaultdict(list)           # 出边列表
@@ -65,16 +71,35 @@ def export_dot_file(filename, topo_nodes, edge_list):
                 f.write(f"  {src} -> {dst};\n")
         f.write("}\n")
 
-# ✅ 修改你的静态路径
+def main():
+    # 检查命令行参数
+    if len(sys.argv) != 3:
+        print("用法: python max_release_alloc.py <DAG文件路径> <输出DOT文件路径>")
+        sys.exit(1)
+    
+    filepath = sys.argv[1]
+    output_path = sys.argv[2]
+    
+    try:
+        adj, indegree, incoming_sizes, outgoing_sizes, edge_list = parse_dot_file(filepath)
+    except FileNotFoundError:
+        print(f"错误: 找不到文件 '{filepath}'")
+        sys.exit(1)
+    except Exception as e:
+        print(f"错误: 解析文件时出错 - {str(e)}")
+        sys.exit(1)
+    
+    try:
+        order = memory_aware_topo_sort(adj, indegree, incoming_sizes)
+        
+        print("拓扑排序结果 (内存感知, 优先释放):")
+        print(order)
+        
+        export_dot_file(output_path, order, edge_list)
+        print(f"DOT 格式文件已输出至: {output_path}")
+    except Exception as e:
+        print(f"错误: 处理过程中出错 - {str(e)}")
+        sys.exit(1)
+
 if __name__ == "__main__":
-    filepath = './dag_src/dag-default.txt'
-    output_path = './dag_src/releasefirst_sorted_output.dot'
-
-    adj, indegree, incoming_sizes, outgoing_sizes, edge_list = parse_dot_file(filepath)
-    order = memory_aware_topo_sort(adj, indegree, incoming_sizes)
-
-    print("Topological order (memory-aware, release-first):")
-    print(order)
-
-    export_dot_file(output_path, order, edge_list)
-    print(f"DOT output written to: {output_path}")
+    main()

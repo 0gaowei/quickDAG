@@ -1,6 +1,6 @@
 import re
 import os
-
+import sys
 
 def parse_dag_file(dag_file_path):
     """解析DAG图文件，提取节点和边的信息"""
@@ -110,15 +110,29 @@ def calculate_peak_memory(memory_changes, topo_order):
 
 
 def main():
-    # 文件路径
-    dag_file = "./dag_src/dag-default.txt"  # 使用用户提供的文件路径
-    topo_file = "./dag_src/topo_kahn_output.dot"  # 使用用户提供的文件路径
+    # 检查命令行参数
+    if len(sys.argv) != 3:
+        print("用法: python cal.py <DAG文件路径> <拓扑序文件路径>")
+        sys.exit(1)
+    
+    # 获取命令行参数
+    dag_file = sys.argv[1]
+    topo_file = sys.argv[2]
+    
+    # 检查文件是否存在
+    if not os.path.exists(dag_file):
+        print(f"错误: DAG文件不存在: {dag_file}")
+        sys.exit(1)
+    
+    if not os.path.exists(topo_file):
+        print(f"错误: 拓扑序文件不存在: {topo_file}")
+        sys.exit(1)
 
     # 解析DAG文件并计算内存变化量
     nodes = parse_dag_file(dag_file)
     if not nodes:
         print("错误: 未能解析任何节点，请检查DAG文件格式")
-        return
+        sys.exit(1)
 
     memory_changes = calculate_memory_change(nodes)
 
@@ -141,7 +155,7 @@ def main():
 
     if not topo_order:
         print("警告: 无法解析拓扑序列，请检查文件格式")
-        return
+        sys.exit(1)
 
     # 过滤拓扑序中不在DAG中的节点
     valid_topo_order = [node for node in topo_order if node in memory_changes]

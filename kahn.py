@@ -1,4 +1,10 @@
 from collections import deque, defaultdict
+import sys
+
+'''
+用法:
+python kahn.py <DAG文件路径> <输出DOT文件路径>
+'''
 
 # 构建图和入度字典
 def build_graph(file_content):
@@ -57,15 +63,38 @@ def export_dot_file(output_path, topo_order, edges):
         f.write("}\n")
 
 # 主程序
-file_path = './dag_src/dag-default.txt'
-output_path = './dag_src/topo_kahn_output.dot'
+def main():
+    # 检查命令行参数
+    if len(sys.argv) != 3:
+        print("用法: python kahn.py <DAG文件路径> <输出DOT文件路径>")
+        sys.exit(1)
+    
+    file_path = sys.argv[1]
+    output_path = sys.argv[2]
+    
+    try:
+        with open(file_path, 'r') as file:
+            file_content = file.readlines()
+    except FileNotFoundError:
+        print(f"错误: 找不到文件 '{file_path}'")
+        sys.exit(1)
+    except Exception as e:
+        print(f"错误: 读取文件时出错 - {str(e)}")
+        sys.exit(1)
+    
+    try:
+        graph, in_degree, nodes, edges = build_graph(file_content)
+        topological_order = kahn_topological_sort(graph, in_degree)
+        
+        print("拓扑排序结果:", topological_order)
+        export_dot_file(output_path, topological_order, edges)
+        print(f"DOT 格式文件已输出至: {output_path}")
+    except ValueError as e:
+        print(f"错误: {str(e)}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"错误: 处理过程中出错 - {str(e)}")
+        sys.exit(1)
 
-with open(file_path, 'r') as file:
-    file_content = file.readlines()
-
-graph, in_degree, nodes, edges = build_graph(file_content)
-topological_order = kahn_topological_sort(graph, in_degree)
-
-print("拓扑排序结果:", topological_order)
-export_dot_file(output_path, topological_order, edges)
-print(f"DOT 格式文件已输出至: {output_path}")
+if __name__ == "__main__":
+    main()

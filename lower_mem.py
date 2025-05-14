@@ -2,6 +2,7 @@ import re
 import heapq
 import os
 from collections import defaultdict, deque
+import sys
 
 class Node:
     def __init__(self, id, size, alpha):
@@ -630,14 +631,22 @@ class DAG:
         print(f"\n最佳优化方法: {best_method}")
         return best_order, best_memory, best_method
 
-# 测试代码
+# 主程序需要修改
 def main():
-    dag_file_path = "./dag_src/dag-default.txt"
+    # 检查命令行参数
+    if len(sys.argv) != 2 and len(sys.argv) != 3:
+        print("用法: python lower_mem.py <DAG文件路径> [输出DOT文件路径]")
+        sys.exit(1)
+    
+    dag_file_path = sys.argv[1]
+    
+    # 如果提供了输出路径，则使用它，否则使用默认路径
+    output_path = sys.argv[2] if len(sys.argv) == 3 else f"{os.path.splitext(dag_file_path)[0]}_optimized.dot"
     
     dag = DAG()
     if not dag.parse_dot_file(dag_file_path):
-        print(f"无法读取DAG文件 {dag_file_path}，程序退出")
-        return
+        print(f"错误: 找不到文件 '{dag_file_path}' 或解析失败")
+        sys.exit(1)
     
     # 设置节点约束 (示例，根据实际需求调整)
     # 这里设置某些节点的执行优先级，数字越小优先级越高
@@ -671,6 +680,11 @@ def main():
     print("\n内存变化过程:")
     for node_id, memory in memory_trace:
         print(f"执行节点 {node_id} 后，内存使用: {memory}")
+    
+    # 输出优化后的DAG图（如果需要）
+    # 这里可以添加导出DOT文件的功能
+    # export_dot_file(output_path, optimized_order, edge_list)
+    # print(f"优化后的DOT文件已保存至: {output_path}")
 
 if __name__ == "__main__":
     main()
