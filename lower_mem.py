@@ -127,21 +127,6 @@ class DAG:
             print(f"\n>> 执行节点 {node_id} <<")
             print(f"  开始时内存: {current_memory}")
             
-            # 执行节点前，检查哪些边数据可以释放
-            edges_released = []
-            for (source, target), release_time in edge_release_time.items():
-                if release_time == idx:
-                    for edge in self.edges:
-                        if edge[0] == source and edge[1] == target:
-                            edge_size = edge[2]
-                            current_memory -= edge_size
-                            edges_released.append((source, target, edge_size))
-                            print(f"  释放边 {source}->{target} 数据: -{edge_size}")
-                            break
-            
-            if not edges_released:
-                print("  没有边数据被释放")
-            
             memory_changes = []
             
             # 如果是起始节点，只添加出边内存
@@ -150,7 +135,7 @@ class DAG:
                 for target_id, out_size in node.out_edges:
                     current_memory += out_size
                     memory_changes.append(("+", target_id, out_size))
-                    print(f"  添加出边 {node_id}->{target_id} 数据: +{out_size}")
+                    print(f"  添加出边 {node_id}->{target_id} 数据: +{out_size} 当前内存: {current_memory}")
             
             # 如果是终止节点，只减去入边内存
             elif not node.out_edges:  # 终止节点
@@ -158,7 +143,7 @@ class DAG:
                 for source_id, in_size in node.in_edges:
                     current_memory -= in_size
                     memory_changes.append(("-", source_id, in_size))
-                    print(f"  减去入边 {source_id}->{node_id} 数据: -{in_size}")
+                    print(f"  减去入边 {source_id}->{node_id} 数据: -{in_size} 当前内存: {current_memory}")
             
             # 中间节点，减去入边，加上出边
             else:
@@ -168,13 +153,13 @@ class DAG:
                 for source_id, in_size in node.in_edges:
                     current_memory -= in_size
                     memory_changes.append(("-", source_id, in_size))
-                    print(f"  减去入边 {source_id}->{node_id} 数据: -{in_size}")
+                    print(f"计算前内存: {current_memory}  减去入边 {source_id}->{node_id} 数据: -{in_size} 当前内存: {current_memory}")
                     
                 # 添加出边数据
                 for target_id, out_size in node.out_edges:
                     current_memory += out_size
                     memory_changes.append(("+", target_id, out_size))
-                    print(f"  添加出边 {node_id}->{target_id} 数据: +{out_size}")
+                    print(f"  添加出边 {node_id}->{target_id} 数据: +{out_size} 当前内存: {current_memory}")
             
             # 汇总内存变化
             if memory_changes:
@@ -189,7 +174,7 @@ class DAG:
             # 更新最大内存
             if current_memory > max_memory:
                 max_memory = current_memory
-                print(f"  *** 新的内存峰值: {max_memory} ***")
+                # print(f"  *** 新的内存峰值: {max_memory} ***")
             
             print(f"  结束时内存: {current_memory}")
             memory_trace.append((node_id, current_memory))
