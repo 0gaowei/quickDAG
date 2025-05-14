@@ -67,8 +67,8 @@ def export_dot_file(filename, topo_nodes, edge_list):
 
 # ✅ 修改你的静态路径
 if __name__ == "__main__":
-    filepath = 'D:/内存最小的拓扑序/quickDAG/daggen/dag_src/dag-default(1).txt'
-    output_path = 'D:/内存最小的拓扑序/quickDAG/daggen/dag_src/sorted_output_min_allocate.dot'
+    filepath = './dag_src/dag-default.txt'
+    output_path = './dag_src/sorted_output_min_allocate.dot'
 
     adj, indegree, incoming_sizes, outgoing_sizes, edge_list = parse_dot_file(filepath)
     order = memory_aware_topo_sort_min_allocate(adj, indegree, outgoing_sizes)

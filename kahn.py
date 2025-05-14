@@ -57,8 +57,8 @@ def export_dot_file(output_path, topo_order, edges):
         f.write("}\n")
 
 # 主程序
-file_path = 'D:/内存最小的拓扑序/quickDAG/daggen/dag_src/dag-default(1).txt'
-output_path = 'D:/内存最小的拓扑序/quickDAG/daggen/dag_src/topo_kahn_output.dot'
+file_path = './dag_src/dag-default.txt'
+output_path = './dag_src/topo_kahn_output.dot'
 
 with open(file_path, 'r') as file:
     file_content = file.readlines()

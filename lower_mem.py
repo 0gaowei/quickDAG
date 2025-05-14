@@ -1,309 +1,361 @@
-import networkx as nx
 import re
-from collections import deque, defaultdict
-import matplotlib.pyplot as plt
-import numpy as np
+import heapq
+import os
+from collections import defaultdict, deque
 
-def parse_dot_dag(filename):
-    """解析DOT格式的DAG文件"""
-    G = nx.DiGraph()
-    memory_weights = {}
-    
-    with open(filename, 'r') as f:
-        content = f.read()
-    
-    # 解析节点
-    node_pattern = r'(\d+)\s+\[size="([^"]+)",\s+alpha="([^"]+)"\]'
-    for match in re.finditer(node_pattern, content):
-        node_id, size, alpha = match.groups()
-        # 转换大小为数值
-        try:
-            size_value = int(size)
-        except ValueError:
-            try:
-                size_value = float(size)
-            except ValueError:
-                size_value = 0
-        
-        G.add_node(node_id, size=size_value, alpha=float(alpha))
-    
-    # 解析边
-    edge_pattern = r'(\d+)\s+->\s+(\d+)\s+\[size\s*=\s*"([^"]+)"\]'
-    for match in re.finditer(edge_pattern, content):
-        src, dst, size = match.groups()
-        G.add_edge(src, dst)
-        # 转换内存权重为数值
-        try:
-            size_value = int(size)
-        except ValueError:
-            try:
-                size_value = float(size)
-            except ValueError:
-                size_value = 0
-        
-        memory_weights[(src, dst)] = size_value
-    
-    return G, memory_weights
+class Node:
+    def __init__(self, id, size, alpha):
+        self.id = id
+        self.size = size  # 节点大小
+        self.alpha = alpha  # alpha值，可用于优先级计算
+        self.in_edges = []  # 入边列表 [(source_id, edge_size), ...]
+        self.out_edges = [] # 出边列表 [(target_id, edge_size), ...]
+        self.constraints = []  # 节点约束列表
 
-def standard_topological_sort(G, algorithm="dfs"):
-    """
-    标准拓扑排序实现
-    algorithm: 'dfs' 或 'bfs'
-    """
-    if algorithm == "dfs":
-        # DFS拓扑排序
-        def dfs_topo_sort(graph):
-            visited = set()
-            topo_order = []
-            
-            def dfs(node):
-                visited.add(node)
-                for successor in graph.successors(node):
-                    if successor not in visited:
-                        dfs(successor)
-                topo_order.append(node)
-            
-            for node in graph.nodes():
-                if node not in visited:
-                    dfs(node)
-            
-            return list(reversed(topo_order))
+class DAG:
+    def __init__(self):
+        self.nodes = {}  # id -> Node
+        self.edges = []  # [(source, target, size), ...]
+        self.constraints = {}  # 节点约束: {node_id: priority_level, ...}
+    
+    def parse_dot_file(self, file_path):
+        """从文件解析DOT格式的DAG图"""
+        try:
+            with open(file_path, 'r') as f:
+                dot_content = f.read()
+            self.parse_dot(dot_content)
+            print(f"成功从 {file_path} 读取DAG图")
+            return True
+        except Exception as e:
+            print(f"读取文件 {file_path} 失败: {str(e)}")
+            return False
+    
+    def parse_dot(self, dot_content):
+        """解析DOT格式的DAG图"""
+        # 解析节点
+        node_pattern = r'(\d+)\s+\[size="([^"]+)",\s+alpha="([^"]+)"\]'
+        for match in re.finditer(node_pattern, dot_content):
+            node_id, size_str, alpha_str = match.groups()
+            node_id = int(node_id)
+            # 将size转换为整数
+            try:
+                size = int(size_str)
+            except ValueError:
+                # 如果size不是简单的整数，暂时设为1
+                size = 1
+            alpha = float(alpha_str)
+            self.nodes[node_id] = Node(node_id, size, alpha)
         
-        return dfs_topo_sort(G)
-    elif algorithm == "bfs":
-        # BFS拓扑排序 (Kahn算法)
-        in_degree = {node: G.in_degree(node) for node in G.nodes()}
-        queue = deque([node for node in G.nodes() if in_degree[node] == 0])
-        topo_order = []
+        # 解析边
+        edge_pattern = r'(\d+)\s+->\s+(\d+)\s+\[size\s+=\s*"([^"]+)"\]'
+        for match in re.finditer(edge_pattern, dot_content):
+            source_id, target_id, size_str = match.groups()
+            source_id, target_id = int(source_id), int(target_id)
+            size = int(size_str)
+            
+            # 添加边信息
+            self.edges.append((source_id, target_id, size))
+            
+            # 更新节点的入边和出边信息
+            if source_id in self.nodes and target_id in self.nodes:
+                self.nodes[source_id].out_edges.append((target_id, size))
+                self.nodes[target_id].in_edges.append((source_id, size))
+    
+    def set_node_constraints(self, constraints):
+        """设置节点约束
+        constraints: {node_id: priority_level, ...} 
+        优先级值越小，越优先执行
+        """
+        self.constraints = constraints
+        for node_id, priority in constraints.items():
+            if node_id in self.nodes:
+                self.nodes[node_id].constraints.append(("priority", priority))
+    
+    def kahn_topological_sort(self):
+        """使用Kahn算法进行拓扑排序"""
+        # 计算每个节点的入度
+        in_degree = {node_id: len(node.in_edges) for node_id, node in self.nodes.items()}
+        
+        # 找到所有入度为0的节点
+        queue = []
+        for node_id, degree in in_degree.items():
+            if degree == 0:
+                # 考虑节点约束作为优先级
+                priority = self.constraints.get(node_id, 0)
+                heapq.heappush(queue, (priority, node_id))
+        
+        result = []
         
         while queue:
-            node = queue.popleft()
-            topo_order.append(node)
+            _, node_id = heapq.heappop(queue)
+            result.append(node_id)
             
-            for successor in G.successors(node):
-                in_degree[successor] -= 1
-                if in_degree[successor] == 0:
-                    queue.append(successor)
+            # 减少相邻节点的入度
+            for target_id, _ in self.nodes[node_id].out_edges:
+                in_degree[target_id] -= 1
+                if in_degree[target_id] == 0:
+                    priority = self.constraints.get(target_id, 0)
+                    heapq.heappush(queue, (priority, target_id))
         
-        return topo_order
-
-def calculate_node_memory_lifecycle(G, topo_order, memory_weights):
-    """
-    计算每个节点输出内存的生命周期
-    返回: {node_id: (start, end)}
-    """
-    node_to_index = {node: idx for idx, node in enumerate(topo_order)}
-    lifecycle = {}
+        if len(result) != len(self.nodes):
+            raise ValueError("图中存在环路，无法进行拓扑排序")
+        
+        return result
     
-    # 计算每个节点的输出内存生命周期
-    for node in G.nodes():
-        idx = node_to_index[node]
+    def simulate_memory(self, execution_order):
+        """模拟执行过程中的内存变化"""
+        current_memory = 0
+        max_memory = 0
+        memory_trace = []
         
-        # 如果节点没有后继(输出)，则生命周期结束于其自身
-        if G.out_degree(node) == 0:
-            lifecycle[node] = (idx, idx)
-            continue
+        # 构建节点到执行顺序的映射
+        execution_time = {node_id: idx for idx, node_id in enumerate(execution_order)}
         
-        # 找到所有使用此节点输出的最后一个节点
-        end_idx = idx
-        for succ in G.successors(node):
-            end_idx = max(end_idx, node_to_index[succ])
+        # 记录每条边的数据何时可以被释放
+        edge_release_time = {}
+        for source_id, target_id, size in self.edges:
+            # 边的数据在目标节点执行后可以释放
+            edge_release_time[(source_id, target_id)] = execution_time[target_id]
         
-        lifecycle[node] = (idx, end_idx)
-    
-    return lifecycle
-
-def identify_long_lifecycle_nodes(G, topo_order, lifecycle):
-    """
-    识别长生命周期的节点
-    返回可移动的节点列表及其目标位置
-    """
-    node_to_index = {node: idx for idx, node in enumerate(topo_order)}
-    nodes_to_move = []
-    
-    for node in G.nodes():
-        if G.in_degree(node) == 0:  # 跳过源节点
-            continue
-        
-        # 固定规则: 这里我们假设某些节点类型为长生命周期(在实际应用中需要根据节点类型判断)
-        # 由于我们没有节点类型信息，这里模拟一下 - 假设节点ID为偶数的是特殊类型
-        is_special_type = int(node) % 2 == 0
-        
-        # 动态规则: 计算输入内存最大生命周期L1和输出内存最小生命周期L2
-        L1 = 0
-        for pred in G.predecessors(node):
-            if pred in lifecycle:
-                L1 = max(L1, lifecycle[pred][1] - lifecycle[pred][0])
-        
-        L2 = float('inf')
-        min_succ_idx = float('inf')
-        for succ in G.successors(node):
-            if succ in lifecycle:
-                L2 = min(L2, lifecycle[succ][1] - lifecycle[succ][0])
-                min_succ_idx = min(min_succ_idx, node_to_index[succ])
-        
-        if L2 == float('inf'):  # 没有后继节点
-            continue
+        # 按执行顺序模拟内存变化
+        for idx, node_id in enumerate(execution_order):
+            node = self.nodes[node_id]
             
-        # 应用长生命周期判断规则
-        if is_special_type or L1 > L2:
-            current_idx = node_to_index[node]
-            target_idx = min_succ_idx - 1  # 移动到最靠前的输出节点前
+            # 执行节点前，检查哪些边数据可以释放
+            for (source, target), release_time in edge_release_time.items():
+                if release_time == idx:
+                    for edge in self.edges:
+                        if edge[0] == source and edge[1] == target:
+                            current_memory -= edge[2]
+                            break
             
-            if target_idx > current_idx:  # 只有向后移动才有意义
-                nodes_to_move.append((node, current_idx, target_idx))
-    
-    return nodes_to_move
-
-def optimize_topo_order(topo_order, nodes_to_move):
-    """
-    优化拓扑排序，移动指定节点
-    """
-    # 按目标位置从后向前排序，以避免移动冲突
-    nodes_to_move.sort(key=lambda x: -x[2])
-    
-    optimized_order = topo_order.copy()
-    
-    for node, current_idx, target_idx in nodes_to_move:
-        # 从原位置移除
-        optimized_order.pop(current_idx)
+            # 如果是起始节点，只添加出边内存
+            if not node.in_edges:  # 起始节点
+                for _, out_size in node.out_edges:
+                    current_memory += out_size
+            # 如果是终止节点，只减去入边内存
+            elif not node.out_edges:  # 终止节点
+                for _, in_size in node.in_edges:
+                    current_memory -= in_size
+            # 中间节点，减去入边，加上出边
+            else:
+                for _, out_size in node.out_edges:
+                    current_memory += out_size
+            
+            max_memory = max(max_memory, current_memory)
+            memory_trace.append((node_id, current_memory))
         
-        # 由于移除了一个元素，如果target_idx > current_idx，需要调整目标索引
-        if target_idx > current_idx:
-            target_idx -= 1
-        
-        # 插入到新位置
-        optimized_order.insert(target_idx, node)
+        return max_memory, memory_trace
     
-    return optimized_order+
-
-def calculate_memory_profile(G, topo_order, node_memory, edge_memory):
-    """
-    计算内存使用profile和理论最小值
-    """
-    node_to_index = {node: idx for idx, node in enumerate(topo_order)}
-    memory_profile = [0] * (len(topo_order) + 1)
-    
-    # 计算每个时间点的内存占用
-    for node in G.nodes():
-        idx = node_to_index[node]
+    def optimize_execution_order(self):
+        """优化执行顺序，尝试减少内存峰值"""
+        # 基本拓扑排序作为初始顺序
+        base_order = self.kahn_topological_sort()
+        best_order = base_order
+        best_memory, _ = self.simulate_memory(base_order)
         
-        # 节点自身的内存占用
-        memory_size = node_memory.get(node, 0)
-        memory_profile[idx] += memory_size
-        
-        # 处理输出边的内存
-        for succ in G.successors(node):
-            edge = (node, succ)
-            if edge in edge_memory:
-                edge_size = edge_memory[edge]
-                end_idx = node_to_index[succ]
+        # 使用贪心策略：在每步选择能最大程度减少当前内存的节点
+        def greedy_memory_optimization():
+            in_degree = {node_id: len(node.in_edges) for node_id, node in self.nodes.items()}
+            result = []
+            available = []  # 存储可执行的节点
+            current_memory = 0
+            
+            # 初始化：添加所有入度为0的节点到可执行列表
+            for node_id, degree in in_degree.items():
+                if degree == 0:
+                    # 计算该节点的内存增长 (出边总和)
+                    node = self.nodes[node_id]
+                    out_sum = sum(size for _, size in node.out_edges)
+                    # 考虑节点约束
+                    constraint_priority = self.constraints.get(node_id, 0)
+                    # 优先执行约束优先级高的节点，其次考虑内存影响
+                    heapq.heappush(available, (constraint_priority, out_sum, node_id))
+            
+            while available:
+                # 选择优先级最高的节点，如果优先级相同则选择产生最小输出的节点
+                _, _, node_id = heapq.heappop(available)
+                result.append(node_id)
                 
-                # 从节点生成开始到被消费前，边的内存占用增加
-                for i in range(idx, end_idx + 1):
-                    memory_profile[i] += edge_size
-    
-    # 理论最小值是内存profile的最大值
-    peak_memory = max(memory_profile)
-    return peak_memory, memory_profile
+                node = self.nodes[node_id]
+                
+                # 更新内存：加上出边数据
+                for _, out_size in node.out_edges:
+                    current_memory += out_size
+                
+                # 减少相邻节点的入度，并检查是否有新的可执行节点
+                for target_id, _ in node.out_edges:
+                    in_degree[target_id] -= 1
+                    if in_degree[target_id] == 0:
+                        next_node = self.nodes[target_id]
+                        out_sum = sum(size for _, size in next_node.out_edges)
+                        constraint_priority = self.constraints.get(target_id, 0)
+                        heapq.heappush(available, (constraint_priority, out_sum, target_id))
+                
+                # 减去入边数据（模拟释放）
+                for _, in_size in node.in_edges:
+                    current_memory -= in_size
+            
+            # 验证结果是否是有效的拓扑排序
+            if len(result) != len(self.nodes):
+                print("警告：贪心策略未能生成有效的拓扑排序")
+                return base_order
+            
+            return result
+        
+        # 策略1: 考虑节点约束的贪心优化
+        greedy_order = greedy_memory_optimization()
+        greedy_memory, _ = self.simulate_memory(greedy_order)
+        if greedy_memory < best_memory:
+            best_order = greedy_order
+            best_memory = greedy_memory
+        
+        # 策略2: 优先释放大数据，同时考虑节点约束
+        def big_data_release_optimization():
+            in_degree = {node_id: len(node.in_edges) for node_id, node in self.nodes.items()}
+            result = []
+            available = []
+            
+            # 添加所有入度为0的节点
+            for node_id, degree in in_degree.items():
+                if degree == 0:
+                    constraint_priority = self.constraints.get(node_id, 0)
+                    heapq.heappush(available, (constraint_priority, 0, node_id))  # (约束优先级, 释放内存, 节点ID)
+            
+            # 记录当前正在使用的边
+            active_edges = set()
+            
+            while available:
+                _, _, node_id = heapq.heappop(available)
+                result.append(node_id)
+                node = self.nodes[node_id]
+                
+                # 更新活跃边
+                for source_id, _ in node.in_edges:
+                    if (source_id, node_id) in active_edges:
+                        active_edges.remove((source_id, node_id))
+                
+                # 添加出边到活跃边
+                for target_id, _ in node.out_edges:
+                    active_edges.add((node_id, target_id))
+                
+                # 减少相邻节点的入度
+                for target_id, _ in node.out_edges:
+                    in_degree[target_id] -= 1
+                    if in_degree[target_id] == 0:
+                        # 计算该节点可以释放的内存
+                        release_memory = 0
+                        for source_id, edge_size in self.nodes[target_id].in_edges:
+                            if source_id in result:
+                                release_memory += edge_size
+                        
+                        constraint_priority = self.constraints.get(target_id, 0)
+                        # 优先级排序: 先看约束优先级，再看释放内存量
+                        heapq.heappush(available, (constraint_priority, -release_memory, target_id))
+            
+            return result
+        
+        release_order = big_data_release_optimization()
+        release_memory, _ = self.simulate_memory(release_order)
+        if release_memory < best_memory:
+            best_order = release_order
+            best_memory = release_memory
+        
+        # 策略3: 混合策略 - 考虑节点约束、输出大小和释放内存
+        def hybrid_optimization():
+            in_degree = {node_id: len(node.in_edges) for node_id, node in self.nodes.items()}
+            result = []
+            available = []
+            current_memory = 0
+            
+            # 添加所有入度为0的节点
+            for node_id, degree in in_degree.items():
+                if degree == 0:
+                    node = self.nodes[node_id]
+                    constraint_priority = self.constraints.get(node_id, 0)
+                    out_sum = sum(size for _, size in node.out_edges)
+                    # 综合考虑约束优先级和输出大小
+                    score = constraint_priority * 1000 + out_sum  # 约束优先级权重更大
+                    heapq.heappush(available, (score, node_id))
+            
+            while available:
+                _, node_id = heapq.heappop(available)
+                result.append(node_id)
+                node = self.nodes[node_id]
+                
+                # 更新内存：加上出边
+                for _, out_size in node.out_edges:
+                    current_memory += out_size
+                
+                # 减去入边（释放内存）
+                for _, in_size in node.in_edges:
+                    current_memory -= in_size
+                
+                # 减少相邻节点的入度，并检查是否有新的可执行节点
+                for target_id, _ in node.out_edges:
+                    in_degree[target_id] -= 1
+                    if in_degree[target_id] == 0:
+                        next_node = self.nodes[target_id]
+                        constraint_priority = self.constraints.get(target_id, 0)
+                        
+                        # 计算执行该节点后的内存变化
+                        memory_change = sum(size for _, size in next_node.out_edges) - sum(size for _, size in next_node.in_edges)
+                        
+                        # 综合考虑约束优先级和内存变化
+                        score = constraint_priority * 1000 + memory_change
+                        heapq.heappush(available, (score, target_id))
+            
+            return result
+        
+        hybrid_order = hybrid_optimization()
+        hybrid_memory, _ = self.simulate_memory(hybrid_order)
+        if hybrid_memory < best_memory:
+            best_order = hybrid_order
+            best_memory = hybrid_memory
+        
+        # 输出最佳结果
+        return best_order, best_memory
 
-def visualize_memory_profile(before_profile, after_profile):
-    """可视化优化前后的内存profile"""
-    plt.figure(figsize=(12, 6))
+# 测试代码
+def main():
+    dag_file_path = "./dag_src/dag-default.txt"
     
-    x_before = np.arange(len(before_profile))
-    x_after = np.arange(len(after_profile))
+    dag = DAG()
+    if not dag.parse_dot_file(dag_file_path):
+        print(f"无法读取DAG文件 {dag_file_path}，程序退出")
+        return
     
-    plt.plot(x_before, before_profile, 'b-', label='优化前')
-    plt.plot(x_after, after_profile, 'r-', label='优化后')
-    
-    plt.xlabel('执行时间点')
-    plt.ylabel('内存占用')
-    plt.title('Topo排序优化前后的内存占用对比')
-    plt.legend()
-    plt.grid(True)
-    
-    # 标注最大值
-    max_before = max(before_profile)
-    max_after = max(after_profile)
-    
-    idx_before = before_profile.index(max_before)
-    idx_after = after_profile.index(max_after)
-    
-    plt.annotate(f'峰值: {format_memory_size(max_before)}', 
-                xy=(idx_before, max_before), 
-                xytext=(idx_before, max_before*1.1),
-                arrowprops=dict(facecolor='black', shrink=0.05))
-    
-    plt.annotate(f'峰值: {format_memory_size(max_after)}', 
-                xy=(idx_after, max_after), 
-                xytext=(idx_after, max_after*1.1),
-                arrowprops=dict(facecolor='black', shrink=0.05))
-    
-    plt.savefig('memory_profile_comparison.png')
-    plt.show()
-
-def format_memory_size(size):
-    """将内存大小格式化为人类可读的形式"""
-    suffixes = ['B', 'KB', 'MB', 'GB', 'TB']
-    index = 0
-    size_float = float(size)
-    while size_float >= 1024 and index < len(suffixes) - 1:
-        size_float /= 1024
-        index += 1
-    return f"{size_float:.2f} {suffixes[index]}"
-
-def apply_topo_optimization(dag_file):
-    """应用Topo排序优化流程"""
-    # 1. 解析DAG
-    G, edge_memory = parse_dot_dag(dag_file)
-    
-    # 提取节点内存大小
-    node_memory = {node: G.nodes[node].get('size', 0) for node in G.nodes()}
-    
-    # 2. 应用常规拓扑排序
-    standard_order = standard_topological_sort(G, "bfs")
-    print(f"标准DFS拓扑排序: {standard_order}")
-    
-    # 3. 计算节点内存生命周期
-    lifecycle = calculate_node_memory_lifecycle(G, standard_order, edge_memory)
-    
-    # 4. 识别长生命周期节点
-    nodes_to_move = identify_long_lifecycle_nodes(G, standard_order, lifecycle)
-    print(f"需要移动的节点: {nodes_to_move}")
-    
-    # 5. 优化拓扑排序
-    optimized_order = optimize_topo_order(standard_order, nodes_to_move)
-    print(f"优化后的拓扑排序: {optimized_order}")
-    
-    # 6. 计算优化前后的内存理论最小值
-    before_peak, before_profile = calculate_memory_profile(G, standard_order, node_memory, edge_memory)
-    after_peak, after_profile = calculate_memory_profile(G, optimized_order, node_memory, edge_memory)
-    
-    # 7. 输出优化结果
-    print(f"\n优化前内存理论最小值: {before_peak} ({format_memory_size(before_peak)})")
-    print(f"优化后内存理论最小值: {after_peak} ({format_memory_size(after_peak)})")
-    
-    if before_peak > after_peak:
-        reduction = before_peak - after_peak
-        reduction_percentage = (reduction / before_peak) * 100
-        print(f"内存减少: {reduction} ({format_memory_size(reduction)}), 减少率: {reduction_percentage:.2f}%")
-    else:
-        print("本例中Topo优化未能降低内存理论最小值")
-    
-    # 8. 可视化内存profile
-    visualize_memory_profile(before_profile, after_profile)
-    
-    return {
-        "standard_order": standard_order,
-        "optimized_order": optimized_order,
-        "before_peak": before_peak,
-        "after_peak": after_peak,
-        "before_profile": before_profile,
-        "after_profile": after_profile
+    # 设置节点约束 (示例，根据实际需求调整)
+    # 这里设置某些节点的执行优先级，数字越小优先级越高
+    node_constraints = {
+        1: 0,  # 起始节点最高优先级
+        4: 2,  # 节点4优先级较高
+        7: 1,  # 节点7优先级次高
+        12: 0  # 终止节点最高优先级
     }
+    dag.set_node_constraints(node_constraints)
+    
+    print(f"节点约束: {node_constraints}")
+    
+    # 基本拓扑排序 (考虑节点约束)
+    basic_order = dag.kahn_topological_sort()
+    basic_memory, _ = dag.simulate_memory(basic_order)
+    print("\n基本拓扑排序:", basic_order)
+    print("内存峰值:", basic_memory)
+    
+    # 优化排序 (考虑节点约束)
+    optimized_order, optimized_memory = dag.optimize_execution_order()
+    print("\n优化后的排序:", optimized_order)
+    print("优化后内存峰值:", optimized_memory)
+    
+    if basic_memory > 0:
+        print(f"内存优化效果: {(basic_memory - optimized_memory) / basic_memory * 100:.2f}%")
+    
+    # 打印内存变化过程
+    _, memory_trace = dag.simulate_memory(optimized_order)
+    print("\n内存变化过程:")
+    for node_id, memory in memory_trace:
+        print(f"执行节点 {node_id} 后，内存使用: {memory}")
 
 if __name__ == "__main__":
-    # 应用到提供的DAG文件
-    dag_file = "./dag_src/dag-default.txt"
-    result = apply_topo_optimization(dag_file)
+    main()
