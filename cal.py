@@ -14,7 +14,7 @@ def parse_dag_file(dag_file_path):
     with open(dag_file_path, 'r') as f:
         lines = f.readlines()
 
-    print(f"DAG文件包含 {len(lines)} 行")
+    # print(f"DAG文件包含 {len(lines)} 行")
 
     for line in lines:
         # 匹配边信息：源节点、目标节点和边的size
@@ -35,7 +35,7 @@ def parse_dag_file(dag_file_path):
             nodes[src]["out_edges"].append((dst, edge_size))
             nodes[dst]["in_edges"].append((src, edge_size))
 
-    print(f"解析到 {len(nodes)} 个节点和 {len(edges)} 条边")
+    # print(f"解析到 {len(nodes)} 个节点和 {len(edges)} 条边")
     return nodes
 
 
@@ -67,12 +67,12 @@ def parse_topological_order(topo_file_path):
     with open(topo_file_path, 'r') as f:
         lines = f.readlines()
 
-    print(f"拓扑序文件包含 {len(lines)} 行")
+    # print(f"拓扑序文件包含 {len(lines)} 行")
 
     # 打印前10行帮助调试
-    print("拓扑序文件前10行内容预览:")
-    for i, line in enumerate(lines[:10]):
-        print(f"{i + 1}: {line.strip()}")
+    # print("拓扑序文件前10行内容预览:")
+    # for i, line in enumerate(lines[:10]):
+    #     print(f"{i + 1}: {line.strip()}")
 
     # 解析拓扑序列，忽略首尾行（digraph G { 和 }）以及边的定义行
     for line in lines[1:-1]:  # 跳过第一行和最后一行
@@ -170,12 +170,12 @@ def main():
     for node_id, change in sorted(memory_changes.items()):
         print(f"节点 {node_id}: {change}")
 
-    print(f"\n拓扑序列 (共 {len(topo_order)} 个节点):")
-    print(topo_order[:20])  # 只显示前20个节点，避免输出过长
-    if len(topo_order) > 20:
-        print(f"... 以及其它 {len(topo_order) - 20} 个节点")
+    # print(f"\n拓扑序列 (共 {len(topo_order)} 个节点):")
+    # print(topo_order[:20])  # 只显示前20个节点，避免输出过长
+    # if len(topo_order) > 20:
+    #     print(f"... 以及其它 {len(topo_order) - 20} 个节点")
 
-    print(f"\n在给定拓扑序下的最大内存占用: {peak_memory}")
+    print(f"最大内存占用: {peak_memory} bytes")
 
     return peak_memory
 

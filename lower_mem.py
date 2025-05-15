@@ -255,7 +255,7 @@ class DAG:
             best_memory = greedy_memory
         print("贪心优化后的排序:", greedy_order)
         print("贪心优化后内存峰值:", greedy_memory)
-        print("内存优化效果: {:.2f}%".format((base_memory - best_memory) / base_memory * 100), "\n")
+        print("内存优化效果: {:.2f}%".format((base_memory - greedy_memory) / base_memory * 100), "\n")
         
         # 策略2: 优先释放大数据，同时考虑节点约束
         def big_data_release_optimization():
@@ -311,7 +311,7 @@ class DAG:
             best_memory = release_memory
         print("优先释放大数据后的排序:", release_order)
         print("优先释放大数据后内存峰值:", release_memory)
-        print("内存优化效果: {:.2f}%".format((base_memory - best_memory) / base_memory * 100), "\n")
+        print("内存优化效果: {:.2f}%".format((base_memory - release_memory) / base_memory * 100), "\n")
         
         # 策略3: 混合策略 - 考虑节点约束、输出大小和释放内存
         def hybrid_optimization():
@@ -368,7 +368,7 @@ class DAG:
             best_memory = hybrid_memory
         print("混合优化后的排序:", hybrid_order)
         print("混合优化后内存峰值:", hybrid_memory)
-        print("内存优化效果: {:.2f}%".format((base_memory - best_memory) / base_memory * 100), "\n")
+        print("内存优化效果: {:.2f}%".format((base_memory - hybrid_memory) / base_memory * 100), "\n")
         
         # 新增策略4: MINLEVELS - 根据节点层次进行排序
         def minlevels_optimization():
@@ -428,7 +428,7 @@ class DAG:
             best_memory = minlevels_memory
         print("MINLEVELS优化后的排序:", minlevels_order)
         print("MINLEVELS优化后内存峰值:", minlevels_memory)
-        print("内存优化效果: {:.2f}%".format((base_memory - best_memory) / base_memory * 100), "\n")
+        print("内存优化效果: {:.2f}%".format((base_memory - minlevels_memory) / base_memory * 100), "\n")
         
         # 新增策略5: RESPECTORDER - 尊重原始顺序
         def respectorder_optimization():
@@ -463,7 +463,7 @@ class DAG:
             best_memory = respectorder_memory
         print("RESPECTORDER优化后的排序:", respectorder_order)
         print("RESPECTORDER优化后内存峰值:", respectorder_memory)
-        print("内存优化效果: {:.2f}%".format((base_memory - best_memory) / base_memory * 100), "\n")
+        print("内存优化效果: {:.2f}%".format((base_memory - respectorder_memory) / base_memory * 100), "\n")
         
         # 新增策略6: MAXMINSIZE - 选择大小最合适的节点
         def maxminsize_optimization():
@@ -511,7 +511,7 @@ class DAG:
             best_memory = maxminsize_memory
         print("MAXMINSIZE优化后的排序:", maxminsize_order)
         print("MAXMINSIZE优化后内存峰值:", maxminsize_memory)
-        print("内存优化效果: {:.2f}%".format((base_memory - best_memory) / base_memory * 100), "\n")
+        print("内存优化效果: {:.2f}%".format((base_memory - maxminsize_memory) / base_memory * 100), "\n")
         
         # 新增策略7: MAXSIZE - 优先选择大节点
         def maxsize_optimization():
@@ -550,7 +550,7 @@ class DAG:
             best_memory = maxsize_memory
         print("MAXSIZE优化后的排序:", maxsize_order)
         print("MAXSIZE优化后内存峰值:", maxsize_memory)
-        print("内存优化效果: {:.2f}%".format((base_memory - best_memory) / base_memory * 100), "\n")
+        print("内存优化效果: {:.2f}%".format((base_memory - maxsize_memory) / base_memory * 100), "\n")
         
         # 新增策略8: GE Topo优化 - 长生命周期节点向后移动
         def ge_topo_optimization():
@@ -625,7 +625,7 @@ class DAG:
             best_memory = ge_topo_memory
         print("GE Topo优化后的排序:", ge_topo_order)
         print("GE Topo优化后内存峰值:", ge_topo_memory)
-        print("内存优化效果: {:.2f}%".format((base_memory - best_memory) / base_memory * 100), "\n")
+        print("内存优化效果: {:.2f}%".format((base_memory - ge_topo_memory) / base_memory * 100), "\n")
 
         # 输出最佳结果
         print(f"\n最佳优化方法: {best_method}")
@@ -676,10 +676,10 @@ def main():
         print(f"内存优化效果: {(basic_memory - optimized_memory) / basic_memory * 100:.2f}%")
     
     # 打印内存变化过程
-    _, memory_trace = dag.simulate_memory(optimized_order)
-    print("\n内存变化过程:")
-    for node_id, memory in memory_trace:
-        print(f"执行节点 {node_id} 后，内存使用: {memory}")
+    # _, memory_trace = dag.simulate_memory(optimized_order)
+    # print("\n内存变化过程:")
+    # for node_id, memory in memory_trace:
+    #     print(f"执行节点 {node_id} 后，内存使用: {memory}")
     
     # 输出优化后的DAG图（如果需要）
     # 这里可以添加导出DOT文件的功能
